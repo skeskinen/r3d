@@ -33,6 +33,7 @@
 #include "r3d_mesh.h"
 #include "r3d_model.h"
 #include "r3d_particles.h"
+#include "r3d_shader.h"
 #include "r3d_skeleton.h"
 #include "r3d_skybox.h"
 #include "r3d_utils.h"

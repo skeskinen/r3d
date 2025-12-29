@@ -43,19 +43,23 @@ layout(location = 3) out vec3 FragORM;
 
 void main()
 {
-    vec4 albedo = vColor * texture(uTexAlbedo, vTexCoord);
-    if (albedo.a < uAlphaCutoff) discard;
+    // Sample material properties into globals that custom shaders can modify
+    vec4 ALBEDO = vColor * texture(uTexAlbedo, vTexCoord);
+    if (ALBEDO.a < uAlphaCutoff) discard;
 
-    vec3 N = normalize(vTBN * M_NormalScale(texture(uTexNormal, vTexCoord).rgb * 2.0 - 1.0, uNormalScale));
-    if (!gl_FrontFacing) N = -N; // Flip for back facing triangles with double sided meshes
+    vec3 NORMAL = normalize(vTBN * M_NormalScale(texture(uTexNormal, vTexCoord).rgb * 2.0 - 1.0, uNormalScale));
+    if (!gl_FrontFacing) NORMAL = -NORMAL; // Flip for back facing triangles with double sided meshes
 
-    FragAlbedo = albedo.rgb;
-    FragEmission = vEmission * texture(uTexEmission, vTexCoord).rgb;
-    FragNormal = M_EncodeOctahedral(N);
+    vec3 ORM = texture(uTexORM, vTexCoord).rgb;
+    vec3 EMISSION = vEmission * texture(uTexEmission, vTexCoord).rgb;
 
-    vec3 orm = texture(uTexORM, vTexCoord).rgb;
+#define R3D_USER_FRAGMENT_MARKER 0
 
-    FragORM.r = uOcclusion * orm.x;
-    FragORM.g = uRoughness * orm.y;
-    FragORM.b = uMetalness * orm.z;
+    // Write to G-buffer
+    FragAlbedo = ALBEDO.rgb;
+    FragEmission = EMISSION;
+    FragNormal = M_EncodeOctahedral(NORMAL);
+    FragORM.r = uOcclusion * ORM.x;
+    FragORM.g = uRoughness * ORM.y;
+    FragORM.b = uMetalness * ORM.z;
 }

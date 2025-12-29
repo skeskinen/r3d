@@ -21,6 +21,7 @@
 #include "./modules/r3d_texture.h"
 #include "./modules/r3d_target.h"
 #include "./modules/r3d_shader.h"
+#include "./modules/r3d_shader_custom.h"
 #include "./modules/r3d_light.h"
 #include "./modules/r3d_cache.h"
 #include "./modules/r3d_draw.h"
@@ -579,8 +580,106 @@ void raster_depth_cube(const r3d_draw_call_t* call, bool shadow, const Matrix* m
     R3D_SHADER_UNBIND_SAMPLER_2D(scene.depthCube, uTexAlbedo);
 }
 
+// Custom shader geometry rendering path
+static void raster_geometry_custom(const r3d_draw_call_t* call)
+{
+    const r3d_draw_group_t* group = r3d_draw_get_call_group(call);
+    const R3D_Shader* shader = call->material.shader;
+
+    /* --- Switch to custom shader --- */
+    glUseProgram(R3D_GetCustomShaderProgram(shader));
+
+    /* --- Send matrices --- */
+    Matrix matNormal = r3d_matrix_normal(&group->transform);
+    R3D_CustomShaderSetMatModel(shader, (float*)&group->transform);
+    R3D_CustomShaderSetMatNormal(shader, (float*)&matNormal);
+
+    /* --- Send skinning related data --- */
+    if (group->player != NULL || R3D_IsSkeletonValid(&group->skeleton)) {
+        glActiveTexture(GL_TEXTURE0 + 0); // Bone matrices slot
+        glBindTexture(GL_TEXTURE_1D, group->player ? group->player->texGlobalPose : group->skeleton.texBindPose);
+        R3D_CustomShaderSetSkinning(shader, true);
+    }
+    else {
+        R3D_CustomShaderSetSkinning(shader, false);
+    }
+
+    /* --- Send billboard related data --- */
+    R3D_CustomShaderSetBillboard(shader, call->material.billboardMode);
+
+    /* --- Set factor material maps --- */
+    R3D_CustomShaderSetEmissionEnergy(shader, call->material.emission.energy);
+    R3D_CustomShaderSetNormalScale(shader, call->material.normal.scale);
+    R3D_CustomShaderSetOcclusion(shader, call->material.orm.occlusion);
+    R3D_CustomShaderSetRoughness(shader, call->material.orm.roughness);
+    R3D_CustomShaderSetMetalness(shader, call->material.orm.metalness);
+
+    /* --- Set misc material values --- */
+    R3D_CustomShaderSetAlphaCutoff(shader, call->material.alphaCutoff);
+
+    /* --- Set texcoord offset/scale --- */
+    R3D_CustomShaderSetTexCoordOffset(shader, call->material.uvOffset.x, call->material.uvOffset.y);
+    R3D_CustomShaderSetTexCoordScale(shader, call->material.uvScale.x, call->material.uvScale.y);
+
+    /* --- Set color material maps --- */
+    R3D_CustomShaderSetAlbedoColor(shader,
+        call->material.albedo.color.r / 255.0f,
+        call->material.albedo.color.g / 255.0f,
+        call->material.albedo.color.b / 255.0f,
+        call->material.albedo.color.a / 255.0f);
+    R3D_CustomShaderSetEmissionColor(shader,
+        call->material.emission.color.r / 255.0f,
+        call->material.emission.color.g / 255.0f,
+        call->material.emission.color.b / 255.0f);
+
+    /* --- Bind active texture maps (same slots as default shader) --- */
+    glActiveTexture(GL_TEXTURE0 + 1);
+    glBindTexture(GL_TEXTURE_2D, R3D_TEXTURE_SELECT(call->material.albedo.texture.id, WHITE));
+    glActiveTexture(GL_TEXTURE0 + 2);
+    glBindTexture(GL_TEXTURE_2D, R3D_TEXTURE_SELECT(call->material.normal.texture.id, NORMAL));
+    glActiveTexture(GL_TEXTURE0 + 3);
+    glBindTexture(GL_TEXTURE_2D, R3D_TEXTURE_SELECT(call->material.emission.texture.id, BLACK));
+    glActiveTexture(GL_TEXTURE0 + 4);
+    glBindTexture(GL_TEXTURE_2D, R3D_TEXTURE_SELECT(call->material.orm.texture.id, BLACK));
+
+    /* --- Bind custom uniforms --- */
+    R3D_BindCustomUniforms(shader, &call->material);
+
+    /* --- Applying material parameters that are independent of shaders --- */
+    r3d_draw_apply_cull_mode(call->material.cullMode);
+
+    /* --- Rendering the object corresponding to the draw call --- */
+    if (r3d_draw_has_instances(group)) {
+        R3D_CustomShaderSetInstancing(shader, true);
+        r3d_draw_instanced(call, 10, 14);
+    }
+    else {
+        R3D_CustomShaderSetInstancing(shader, false);
+        r3d_draw(call);
+    }
+
+    /* --- Unbind textures --- */
+    glActiveTexture(GL_TEXTURE0 + 1);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    glActiveTexture(GL_TEXTURE0 + 2);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    glActiveTexture(GL_TEXTURE0 + 3);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    glActiveTexture(GL_TEXTURE0 + 4);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    /* --- Switch back to default geometry shader --- */
+    glUseProgram(R3D_MOD_SHADER.scene.geometry.id);
+}
+
 void raster_geometry(const r3d_draw_call_t* call)
 {
+    /* --- Check for custom shader --- */
+    if (call->material.shader != NULL) {
+        raster_geometry_custom(call);
+        return;
+    }
+
     const r3d_draw_group_t* group = r3d_draw_get_call_group(call);
 
     /* --- Send matrices --- */

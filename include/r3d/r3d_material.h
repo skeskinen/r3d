@@ -12,6 +12,10 @@
 #include "./r3d_platform.h"
 #include <raylib.h>
 
+// Forward declarations for custom shader types
+typedef struct R3D_Shader R3D_Shader;
+typedef struct R3D_MaterialParam R3D_MaterialParam;
+
 /**
  * @defgroup Material
  * @{
@@ -121,6 +125,12 @@ typedef struct R3D_Material {
                                              */
 
     float alphaCutoff;          ///< Alpha threshold below which fragments are discarded during opaque rendering.
+
+    // Custom shader support
+    R3D_Shader* shader;             ///< Custom shader (NULL = use default shader).
+    R3D_MaterialParam* params;      ///< Custom shader parameter values.
+    int paramCount;                 ///< Number of custom parameters.
+    int paramCapacity;              ///< Allocated capacity for params array.
 
 } R3D_Material;
 

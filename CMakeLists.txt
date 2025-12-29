@@ -120,10 +120,18 @@ Please initialize the submodule with:
 else()
     find_package(assimp QUIET)
 
-    if(TARGET assimp)
+    if(TARGET assimp::assimp)
+        message(STATUS "Using system-installed assimp (assimp::assimp)")
+        # Create alias for compatibility
+        if(NOT TARGET assimp)
+            add_library(assimp ALIAS assimp::assimp)
+        endif()
+        get_target_property(ASSIMP_INCLUDE_DIR assimp::assimp INTERFACE_INCLUDE_DIRECTORIES)
+        set(R3D_ASSIMP_INC_PATH "${ASSIMP_INCLUDE_DIR}" CACHE STRING "Path to assimp includes" FORCE)
+    elseif(TARGET assimp)
         message(STATUS "Using system-installed assimp")
-        get_target_property(RAYLIB_INCLUDE_DIR assimp INTERFACE_INCLUDE_DIRECTORIES)
-        set(R3D_ASSIMP_INC_PATH "${RAYLIB_INCLUDE_DIR}" CACHE STRING "Path to assimp includes" FORCE)
+        get_target_property(ASSIMP_INCLUDE_DIR assimp INTERFACE_INCLUDE_DIRECTORIES)
+        set(R3D_ASSIMP_INC_PATH "${ASSIMP_INCLUDE_DIR}" CACHE STRING "Path to assimp includes" FORCE)
     else()
         message(FATAL_ERROR "System assimp not found.
 Make sure assimp is installed and discoverable by CMake (e.g. via CMAKE_PREFIX_PATH or pkg-config).")
@@ -215,6 +223,7 @@ add_library(${PROJECT_NAME}
     "${R3D_ROOT_PATH}/src/r3d_particles.c"
     "${R3D_ROOT_PATH}/src/r3d_skeleton.c"
     "${R3D_ROOT_PATH}/src/r3d_skybox.c"
+    "${R3D_ROOT_PATH}/src/r3d_shader_custom.c"
     "${R3D_ROOT_PATH}/src/r3d_utils.c"
 )
 
